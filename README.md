@@ -70,23 +70,53 @@ docker-compose down
 ## 🔄 How CI/CD Works
 
 ### Triggers
-- **Push** to `main` or `master` branch
-- **Pull Request** to `main` or `master` branch
+Workflow runs automatically when:
+```bash
+git push origin main        # Push to main branch
+```
+Or when creating a Pull Request to `main`/`master`
 
-### Workflow Steps
+### Build Process (Parallel Jobs)
 
-1. **Checkout Code** - Gets your code from GitHub
-2. **Setup Docker Buildx** - Prepares Docker build environment
-3. **Login to Docker Hub** - Authenticates with Docker Hub
-4. **Extract Metadata** - Creates tags for Docker images
-5. **Build & Push Images** - Builds both services and pushes to Docker Hub
-6. **Deploy** - Notification step (can be extended for actual deployment)
+**Matrix Strategy** - Runs 2 jobs in parallel:
+
+```bash
+# Job 1: counting-service
+- Checkout code
+- Setup Docker Buildx
+- Login to Docker Hub
+- Build image → aunghtetlwin/counting-service:latest
+- Tag with commit SHA → aunghtetlwin/counting-service:main-abc1234
+- Push to Docker Hub
+
+# Job 2: dashboard-service  
+- Same steps for dashboard-service
+```
 
 ### What Gets Built
 
-Each push creates Docker images with two tags:
-- `latest` - Always points to the most recent build
-- `<branch>-<git-sha>` - Specific version tag for rollback capability
+Each push creates images with 2 tags:
+```bash
+# Latest tag
+aunghtetlwin/counting-service:latest
+aunghtetlwin/dashboard-service:latest
+
+# Commit SHA tag (for rollback)
+aunghtetlwin/counting-service:main-cd08791
+aunghtetlwin/dashboard-service:main-cd08791
+```
+
+### Deploy Process
+
+After successful build:
+```bash
+# Currently just shows notification
+echo "Images pushed successfully"
+
+# Can be extended to auto-deploy:
+docker-compose pull    # Pull new images
+docker-compose up -d   # Restart containers
+```
 
 Example:
 - `aunghtetlwin/counting-service:latest`
