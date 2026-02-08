@@ -8,7 +8,7 @@ services:
       - "8600:8600/tcp"
     networks:
       appnet:
-        ipv4_address: 172.18.0.100
+        ipv4_address: 172.20.0.100
 
   registrator:
     image: docker:cli
@@ -33,7 +33,7 @@ services:
       appnet:
     restart: always
     dns:
-      - 172.18.0.100
+      - 172.20.0.100
 
   dashboard:
     image: aunghtetlwin/dashboard-service:latest
@@ -48,7 +48,7 @@ services:
       appnet:
     restart: always
     dns:
-      - 172.18.0.100
+      - 172.20.0.100
 
   dashboard-lb:
     image: nginx:alpine
@@ -67,4 +67,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.18.0.0/16
+        - subnet: 172.20.0.0/16

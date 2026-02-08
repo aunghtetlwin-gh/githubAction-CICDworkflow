@@ -1,6 +1,9 @@
 # Consul CI/CD Demo
 
-This project demonstrates a multi-architecture Docker CI/CD pipeline with Consul service discovery. It shows how to register services in Consul for monitoring and visibility.
+This project demonstrates a multi-architecture Docker CI/CD pipeline. It includes a flexible load-balanced dashboard service using Nginx, leveraging Docker DNS for automatic service discovery. All services are registered in Consul for monitoring and visibility.
+
+## Architecture
+![Diagram](assets/architecture.png)
 
 ## Features
 - **GitHub Actions CI/CD** builds and pushes multi-platform images for:
@@ -11,7 +14,14 @@ This project demonstrates a multi-architecture Docker CI/CD pipeline with Consul
   - 3 `dashboard-service` containers
   - 1 Consul agent for service registration/monitoring
   - 1 Registrator container for automatic service registration
+  - 1 Nginx load balancer for dashboard service (auto-load balances all dashboard instances)
 - **Automatic Consul Registration**: All service containers are registered with Consul via a custom script with health checks
+- **Flexible Service Discovery**: Nginx uses Docker DNS to dynamically route traffic to all dashboard-service containers, supporting scaling and zero manual IP configuration
+- **Consul DNS Integration**: 
+  - Consul agent configured with DNS recursion (`-recursor=8.8.8.8`) to resolve external domains
+  - Consul DNS server exposed on port 53 for container DNS queries
+  - Static IP address (`172.20.0.100`) assigned to Consul for reliable DNS resolution
+  - All service containers configured to use Consul as their DNS server, enabling `.service.consul` domain resolution
 
 ## Prerequisites
 
@@ -22,7 +32,7 @@ This project demonstrates a multi-architecture Docker CI/CD pipeline with Consul
 ## Quick Start
 
 ### 1. Build & Push Images (CI/CD)
-Images are built and pushed to Docker Hub automatically via GitHub Actions when you push to the `main` branch.
+Images are built and pushed to Docker Hub automatically via GitHub Actions when you push to the `main` or `loadbalancer` branch.
 
 - See `.github/workflows/ci-cd.yaml` for workflow details
 - Images are multi-arch (amd64, arm64) and compatible with Linux and Apple Silicon
@@ -48,6 +58,8 @@ This will start:
 - 3 `counting-service` containers (port 9003)
 - 3 `dashboard-service` containers (port 9002)
 - 1 Consul agent (port 8500)
+- 1 registrator container to auto-register services in Consul
+- 1 Nginx load balancer for dashboard service (port 8080)
 - 1 registrator container to auto-register services in Consul
 
 ### 4. Inspect Docker Network
@@ -86,34 +98,58 @@ docker logs ci-cd-demo-registrator-1
 
 Example output:
 ```
-Registering counting-1 at 172.19.0.5:9003
+Registering counting-1 at 172.20.0.2:9003
  ✓
-Registering counting-2 at 172.19.0.3:9003
+Registering counting-2 at 172.20.0.3:9003
  ✓
-Registering counting-3 at 172.19.0.4:9003
+Registering counting-3 at 172.20.0.4:9003
  ✓
-Registering dashboard-1 at 172.19.0.8:9002
+Registering dashboard-1 at 172.20.0.5:9002
  ✓
-Registering dashboard-2 at 172.19.0.6:9002
+Registering dashboard-2 at 172.20.0.6:9002
  ✓
-Registering dashboard-3 at 172.19.0.7:9002
+Registering dashboard-3 at 172.20.0.7:9002
  ✓
 
 All services registered! Check http://localhost:8500/ui/dc1/services
 ```
 
-### 6. Access Consul UI
-
-Open your browser and navigate to:
-```
-http://localhost:8500
-```
-
-You should see all 6 services registered in the Consul UI with their health status, IP addresses, and service details:
+You should see all services registered in the Consul UI.
 
 ![Consul UI](assets/consul-UI.png)
 
-### 7. Stop the Stack
+### 6. Dashboard Load Balancer (Nginx)
+
+The dashboard service is accessible through an Nginx load balancer, which provides a single entry point and automatically distributes requests across all running dashboard-service containers. Nginx uses Docker DNS for dynamic service discovery and load balancing.
+
+**Access the dashboard**: http://localhost:8080
+
+![Dashboard via Load Balancer](assets/lb.png)
+
+### 7. Testing Fault Tolerance by Scaling Down Counting Service
+
+You can test fault tolerance and service discovery by reducing the number of counting-service containers. For example, you can stop containers individually:
+
+```sh
+docker stop ci-cd-demo-counting-1
+# ...or...
+docker stop ci-cd-demo-counting-3
+```
+
+Or scale down using Docker Compose:
+
+```sh
+docker compose up -d --scale counting=1 --scale dashboard=3
+```
+
+After scaling down, the dashboard will continue to work and route requests to the remaining counting-service instance automatically. Consul UI will reflect the change in registered services, and Docker DNS ensures requests are always sent to available containers.
+
+This demonstrates the resilience of your architecture: services remain available even when some containers are stopped or removed, with no manual reconfiguration required.
+
+![Scaling Down Counting Service](assets/scale-down-counting.png)
+![Dashboard Still Works](assets/dashboard-still-works.png)
+
+### 8. Stop the Stack
 
 When you're done:
 
