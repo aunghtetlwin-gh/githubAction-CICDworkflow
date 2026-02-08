@@ -92,3 +92,7 @@ docker compose logs -f counting-service
 docker compose logs -f dashboard-service
 
 docker compose down
+
+
+
+docker compose up -d --scale counting=3 --scale dashboard=3

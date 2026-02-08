@@ -105,16 +105,16 @@ Example output:
 {
   "Name": "ci-cd-demo_appnet",
   "Driver": "bridge",
-  "Subnet": "172.18.0.0/16",
-  "Gateway": "172.18.0.1",
+  "Subnet": "172.19.0.0/16",
+  "Gateway": "172.19.0.1",
   "Containers": {
-    "ci-cd-demo-consul-1": { "IPv4Address": "172.18.0.2/16" },
-    "ci-cd-demo-counting-1": { "IPv4Address": "172.18.0.3/16" },
-    "ci-cd-demo-counting-2": { "IPv4Address": "172.18.0.4/16" },
-    "ci-cd-demo-counting-3": { "IPv4Address": "172.18.0.5/16" },
-    "ci-cd-demo-dashboard-1": { "IPv4Address": "172.18.0.6/16" },
-    "ci-cd-demo-dashboard-2": { "IPv4Address": "172.18.0.7/16" },
-    "ci-cd-demo-dashboard-3": { "IPv4Address": "172.18.0.8/16" }
+    "ci-cd-demo-consul-1": { "IPv4Address": "172.19.0.2/16" },
+    "ci-cd-demo-counting-2": { "IPv4Address": "172.19.0.3/16" },
+    "ci-cd-demo-counting-3": { "IPv4Address": "172.19.0.4/16" },
+    "ci-cd-demo-counting-1": { "IPv4Address": "172.19.0.5/16" },
+    "ci-cd-demo-dashboard-2": { "IPv4Address": "172.19.0.6/16" },
+    "ci-cd-demo-dashboard-3": { "IPv4Address": "172.19.0.7/16" },
+    "ci-cd-demo-dashboard-1": { "IPv4Address": "172.19.0.8/16" }
   }
 }
 ```
@@ -129,17 +129,17 @@ docker logs ci-cd-demo-registrator-1
 
 Expected output:
 ```
-Registering counting-1 at 172.18.0.3:9003
+Registering counting-1 at 172.19.0.5:9003
  ✓
-Registering counting-2 at 172.18.0.4:9003
+Registering counting-2 at 172.19.0.3:9003
  ✓
-Registering counting-3 at 172.18.0.5:9003
+Registering counting-3 at 172.19.0.4:9003
  ✓
-Registering dashboard-1 at 172.18.0.6:9002
+Registering dashboard-1 at 172.19.0.8:9002
  ✓
-Registering dashboard-2 at 172.18.0.7:9002
+Registering dashboard-2 at 172.19.0.6:9002
  ✓
-Registering dashboard-3 at 172.18.0.8:9002
+Registering dashboard-3 at 172.19.0.7:9002
  ✓
 
 All services registered! Check http://localhost:8500/ui/dc1/services
