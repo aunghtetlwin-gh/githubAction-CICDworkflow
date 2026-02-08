@@ -96,3 +96,5 @@ docker compose down
 
 
 docker compose up -d --scale counting=3 --scale dashboard=3
+
+docker logs ci-cd-demo-registrator-1

@@ -1,6 +1,6 @@
 # Consul CI/CD Demo
 
-This project demonstrates a multi-architecture Docker CI/CD pipeline with Consul service discovery. It shows how to build, deploy, and register microservices in Consul for monitoring and visibility.
+This project demonstrates a multi-architecture Docker CI/CD pipeline with Consul service discovery. It shows how to register services in Consul for monitoring and visibility.
 
 ## Features
 - **GitHub Actions CI/CD** builds and pushes multi-platform images for:
@@ -13,90 +13,47 @@ This project demonstrates a multi-architecture Docker CI/CD pipeline with Consul
   - 1 Registrator container for automatic service registration
 - **Automatic Consul Registration**: All service containers are registered with Consul via a custom script with health checks
 
-## 📋 Prerequisites
+## Prerequisites
 
 1. **GitHub Account** - Repository where code is hosted
 2. **Docker Hub Account** - For storing Docker images
 3. **Local Development Environment** - Docker and Docker Compose installed
 
-## 🚀 Setup Instructions
+## Quick Start
 
-### Step 1: Push Code to GitHub
+### 1. Build & Push Images (CI/CD)
+Images are built and pushed to Docker Hub automatically via GitHub Actions when you push to the `main` branch.
 
-```bash
-# Initialize git repository (if not already done)
-git init
+- See `.github/workflows/ci-cd.yaml` for workflow details
+- Images are multi-arch (amd64, arm64) and compatible with Linux and Apple Silicon
+- Each push creates images with `latest` tag and commit SHA tag
 
-# Add remote repository
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-
-# Add all files
-git add .
-
-# Commit
-git commit -m "Initial commit with CI/CD setup"
-
-# Push to GitHub
-git push -u origin main
-```
-
-### Step 2: Configure GitHub Secrets
+### 2. Configure GitHub Secrets (First Time Only)
 
 Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
 
 Add the following secret:
-
 - **Name:** `DOCKER_PASSWORD`
 - **Value:** Your Docker Hub password or access token
 
-> 💡 **Tip:** Use Docker Hub Access Tokens instead of your password for better security.
-> Create one at: https://hub.docker.com/settings/security
+If using a different Docker Hub username, update `DOCKER_USERNAME` in `.github/workflows/ci-cd.yaml`
 
-### Step 3: Update Docker Hub Username (Optional)
+### 3. Run the Stack
 
-If you're not using `aunghtetlwin` as your Docker Hub username:
-
-1. Edit [.github/workflows/ci-cd.yaml](.github/workflows/ci-cd.yaml)
-2. Change the `DOCKER_USERNAME` environment variable to your username
-3. Update [docker-compose.yaml](docker-compose.yaml) image names
-
-### Step 4: Test Locally (Optional)
-
-```bash
-# Build images locally
-docker build -t aunghtetlwin/counting-service:latest ./counting-service
-docker build -t aunghtetlwin/dashboard-service:latest ./dashboard-service
-
-# Push to Docker Hub
-docker push aunghtetlwin/counting-service:latest
-docker push aunghtetlwin/dashboard-service:latest
-```
-
-## 🏃 Quick Start - Running with Consul
-
-### 1. Start the Stack
-
-Run the following command to start 3 instances of each service with Consul:
-
-```bash
+```sh
 docker compose up -d --scale counting=3 --scale dashboard=3
 ```
 
 This will start:
 - 3 `counting-service` containers (port 9003)
 - 3 `dashboard-service` containers (port 9002)
-- 1 Consul agent (port 8500 - UI accessible at http://localhost:8500)
+- 1 Consul agent (port 8500)
 - 1 registrator container to auto-register services in Consul
 
-### 2. Inspect Docker Network
+### 4. Inspect Docker Network
 
-Check the network configuration and container IPs:
-
-```bash
-# List networks
+```sh
 docker network ls
-
-# Inspect the application network
 docker network inspect ci-cd-demo_appnet
 ```
 
@@ -119,15 +76,15 @@ Example output:
 }
 ```
 
-### 3. Verify Consul Registration
+### 5. Check Consul Registration
 
 Wait a few seconds for the registrator to complete, then check the logs:
 
-```bash
+```sh
 docker logs ci-cd-demo-registrator-1
 ```
 
-Expected output:
+Example output:
 ```
 Registering counting-1 at 172.19.0.5:9003
  ✓
@@ -145,103 +102,26 @@ Registering dashboard-3 at 172.19.0.7:9002
 All services registered! Check http://localhost:8500/ui/dc1/services
 ```
 
-### 4. Access Consul UI
+### 6. Access Consul UI
 
 Open your browser and navigate to:
 ```
 http://localhost:8500
 ```
 
-You should see all 6 services registered (3 counting + 3 dashboard) with their health check status.
+You should see all 6 services registered in the Consul UI with their health status, IP addresses, and service details:
 
-### 5. Verify Service Health
+![Consul UI](assets/consul-UI.png)
 
-Check if services are passing health checks:
-
-```bash
-# Query Consul API for counting service
-curl http://localhost:8500/v1/health/service/counting?passing
-
-# Query Consul API for dashboard service
-curl http://localhost:8500/v1/health/service/dashboard?passing
-```
-
-### 6. Stop the Stack
+### 7. Stop the Stack
 
 When you're done:
 
-```bash
-# Stop and remove all containers
+```sh
 docker compose down
-
-# Stop and remove containers + volumes
-docker compose down -v
 ```
 
-## 🔄 How CI/CD Works
-
-### Triggers
-Workflow runs automatically when:
-```bash
-git push origin main        # Push to main branch
-```
-Or when creating a Pull Request to `main`/`master`
-
-### Build Process (Parallel Jobs)
-
-**Matrix Strategy** - Runs 2 jobs in parallel:
-
-```bash
-# Job 1: counting-service
-- Checkout code
-- Setup QEMU (for multi-platform support)
-- Setup Docker Buildx
-- Login to Docker Hub
-- Build image for AMD64 & ARM64 → aunghtetlwin/counting-service:latest
-- Tag with commit SHA → aunghtetlwin/counting-service:main-abc1234
-- Push to Docker Hub
-
-# Job 2: dashboard-service  
-- Same steps for dashboard-service
-```
-
-**Multi-Platform Support:**
-```bash
-# Images built for both architectures:
-- linux/amd64  # Standard servers (AWS EC2, DigitalOcean, etc.)
-- linux/arm64  # ARM servers (Raspberry Pi, AWS Graviton, Apple Silicon)
-```
-
-### What Gets Built
-
-Each push creates images with 2 tags:
-```bash
-# Latest tag
-aunghtetlwin/counting-service:latest
-aunghtetlwin/dashboard-service:latest
-
-# Commit SHA tag (for rollback)
-aunghtetlwin/counting-service:main-cd08791
-aunghtetlwin/dashboard-service:main-cd08791
-```
-
-### Deploy Process
-
-After successful build:
-```bash
-# Currently just shows notification
-echo "Images pushed successfully"
-
-# Can be extended to auto-deploy:
-docker-compose pull    # Pull new images
-docker-compose up -d   # Restart containers
-```
-
-Example:
-- `aunghtetlwin/counting-service:latest`
-- `aunghtetlwin/counting-service:main-abc1234`
-
-## 📦 Project Structure
+## Project Structure
 
 ```
 ci-cd-demo/
@@ -259,91 +139,23 @@ ci-cd-demo/
 └── README.md
 ```
 
-## 🔍 How It Works
+## How It Works
+
+### CI/CD Pipeline
+1. Push code to GitHub `main` branch
+2. GitHub Actions triggers workflow
+3. Builds Docker images for both AMD64 and ARM64 architectures
+4. Pushes images to Docker Hub with `latest` and commit SHA tags
 
 ### Service Registration Flow
-
-1. **Docker Compose starts** all containers (Consul, counting, dashboard services)
-2. **Containers get IPs** from the Docker bridge network (`appnet`)
-3. **Registrator container** waits 10 seconds for services to be ready
-4. **Registration script** (`register-services.sh`) runs:
+1. Docker Compose starts all containers (Consul, counting, dashboard services)
+2. Containers get IPs from the Docker bridge network (`appnet`)
+3. Registrator container waits 10 seconds for services to be ready
+4. Registration script (`register-services.sh`) runs:
    - Discovers all running counting/dashboard containers
    - Extracts their IP addresses from Docker network
    - Registers each instance with Consul API
    - Configures HTTP health checks for each service
-5. **Consul monitors** all registered services via health checks every 10 seconds
-6. **Consul UI** displays real-time service health and status
+5. Consul monitors all registered services via health checks every 10 seconds
+6. Consul UI displays real-time service health and status
 
-## 🔐 Security Best Practices
-
-1. ✅ Never commit secrets to Git
-2. ✅ Use GitHub Secrets for sensitive data
-3. ✅ Use Docker Hub Access Tokens instead of passwords
-4. ✅ Review pull requests before merging
-5. ✅ Enable branch protection rules
-
-## 🚀 Extending Deployment
-
-### Deploy to Server via SSH
-
-Uncomment the deployment section in [.github/workflows/ci-cd.yaml](.github/workflows/ci-cd.yaml) and add these secrets:
-
-- `SERVER_HOST` - Your server IP or hostname
-- `SERVER_USER` - SSH username
-- `SERVER_SSH_KEY` - Private SSH key for authentication
-
-### Deploy to Cloud Platforms
-
-**AWS ECS:**
-```yaml
-- name: Deploy to ECS
-  uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-```
-
-**Azure Container Apps:**
-```yaml
-- name: Deploy to Azure
-  uses: azure/container-apps-deploy-action@v1
-```
-
-**Kubernetes:**
-```yaml
-- name: Deploy to Kubernetes
-  uses: azure/k8s-deploy@v1
-```
-
-## 📊 Monitoring Workflow
-
-1. Go to your GitHub repository
-2. Click **Actions** tab
-3. You'll see all workflow runs
-4. Click on any run to see detailed logs
-
-## 🐛 Troubleshooting
-
-### Build Fails
-- Check if binaries exist in service folders
-- Verify Dockerfile syntax
-
-### Docker Hub Push Fails
-- Verify `DOCKER_PASSWORD` secret is set correctly
-- Check Docker Hub username in workflow
-
-### Deployment Fails
-- Verify SSH credentials
-- Check server accessibility
-- Ensure docker-compose is installed on server
-
-## 📝 Notes
-
-- Images are cached to speed up subsequent builds
-- Deployment only runs on `main`/`master` branch pushes
-- Pull requests will build but not deploy
-
-## 🎯 Next Steps
-
-1. Add automated tests to the workflow
-2. Implement rolling deployments
-3. Add Slack/Discord notifications
-4. Set up staging and production environments
-5. Add monitoring and alerting
