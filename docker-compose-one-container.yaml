@@ -1,0 +1,29 @@
+services:
+  counting-service:
+    image: aunghtetlwin/counting-service:latest
+    container_name: counting-service
+    environment:
+      - PORT=9003
+    ports:
+      - "9003:9003"
+    networks:
+      - consul-demo
+    restart: unless-stopped
+
+  dashboard-service:
+    image: aunghtetlwin/dashboard-service:latest
+    container_name: dashboard-service
+    environment:
+      - PORT=9002
+      - COUNTING_SERVICE_URL=http://counting-service:9003
+    ports:
+      - "9002:9002"
+    networks:
+      - consul-demo
+    depends_on:
+      - counting-service
+    restart: unless-stopped
+
+networks:
+  consul-demo:
+    driver: bridge

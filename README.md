@@ -1,6 +1,17 @@
-# CI/CD Demo with GitHub Actions
+# Consul CI/CD Demo
 
-This project demonstrates CI/CD automation using GitHub Actions for microservices (counting-service and dashboard-service).
+This project demonstrates a multi-architecture Docker CI/CD pipeline with Consul service discovery. It shows how to build, deploy, and register microservices in Consul for monitoring and visibility.
+
+## Features
+- **GitHub Actions CI/CD** builds and pushes multi-platform images for:
+  - Linux AMD64 (Standard servers)
+  - Linux ARM64 (ARM servers, Apple Silicon)
+- **Docker Compose** launches:
+  - 3 `counting-service` containers
+  - 3 `dashboard-service` containers
+  - 1 Consul agent for service registration/monitoring
+  - 1 Registrator container for automatic service registration
+- **Automatic Consul Registration**: All service containers are registered with Consul via a custom script with health checks
 
 ## 📋 Prerequisites
 
@@ -56,15 +67,115 @@ If you're not using `aunghtetlwin` as your Docker Hub username:
 docker build -t aunghtetlwin/counting-service:latest ./counting-service
 docker build -t aunghtetlwin/dashboard-service:latest ./dashboard-service
 
-# Run with docker-compose
-docker-compose up -d
+# Push to Docker Hub
+docker push aunghtetlwin/counting-service:latest
+docker push aunghtetlwin/dashboard-service:latest
+```
 
-# Test services
-curl http://localhost:9003  # counting-service
-curl http://localhost:9002  # dashboard-service
+## 🏃 Quick Start - Running with Consul
 
-# Stop services
-docker-compose down
+### 1. Start the Stack
+
+Run the following command to start 3 instances of each service with Consul:
+
+```bash
+docker compose up -d --scale counting=3 --scale dashboard=3
+```
+
+This will start:
+- 3 `counting-service` containers (port 9003)
+- 3 `dashboard-service` containers (port 9002)
+- 1 Consul agent (port 8500 - UI accessible at http://localhost:8500)
+- 1 registrator container to auto-register services in Consul
+
+### 2. Inspect Docker Network
+
+Check the network configuration and container IPs:
+
+```bash
+# List networks
+docker network ls
+
+# Inspect the application network
+docker network inspect ci-cd-demo_appnet
+```
+
+Example output:
+```json
+{
+  "Name": "ci-cd-demo_appnet",
+  "Driver": "bridge",
+  "Subnet": "172.18.0.0/16",
+  "Gateway": "172.18.0.1",
+  "Containers": {
+    "ci-cd-demo-consul-1": { "IPv4Address": "172.18.0.2/16" },
+    "ci-cd-demo-counting-1": { "IPv4Address": "172.18.0.3/16" },
+    "ci-cd-demo-counting-2": { "IPv4Address": "172.18.0.4/16" },
+    "ci-cd-demo-counting-3": { "IPv4Address": "172.18.0.5/16" },
+    "ci-cd-demo-dashboard-1": { "IPv4Address": "172.18.0.6/16" },
+    "ci-cd-demo-dashboard-2": { "IPv4Address": "172.18.0.7/16" },
+    "ci-cd-demo-dashboard-3": { "IPv4Address": "172.18.0.8/16" }
+  }
+}
+```
+
+### 3. Verify Consul Registration
+
+Wait a few seconds for the registrator to complete, then check the logs:
+
+```bash
+docker logs ci-cd-demo-registrator-1
+```
+
+Expected output:
+```
+Registering counting-1 at 172.18.0.3:9003
+ ✓
+Registering counting-2 at 172.18.0.4:9003
+ ✓
+Registering counting-3 at 172.18.0.5:9003
+ ✓
+Registering dashboard-1 at 172.18.0.6:9002
+ ✓
+Registering dashboard-2 at 172.18.0.7:9002
+ ✓
+Registering dashboard-3 at 172.18.0.8:9002
+ ✓
+
+All services registered! Check http://localhost:8500/ui/dc1/services
+```
+
+### 4. Access Consul UI
+
+Open your browser and navigate to:
+```
+http://localhost:8500
+```
+
+You should see all 6 services registered (3 counting + 3 dashboard) with their health check status.
+
+### 5. Verify Service Health
+
+Check if services are passing health checks:
+
+```bash
+# Query Consul API for counting service
+curl http://localhost:8500/v1/health/service/counting?passing
+
+# Query Consul API for dashboard service
+curl http://localhost:8500/v1/health/service/dashboard?passing
+```
+
+### 6. Stop the Stack
+
+When you're done:
+
+```bash
+# Stop and remove all containers
+docker compose down
+
+# Stop and remove containers + volumes
+docker compose down -v
 ```
 
 ## 🔄 How CI/CD Works
@@ -83,14 +194,22 @@ Or when creating a Pull Request to `main`/`master`
 ```bash
 # Job 1: counting-service
 - Checkout code
+- Setup QEMU (for multi-platform support)
 - Setup Docker Buildx
 - Login to Docker Hub
-- Build image → aunghtetlwin/counting-service:latest
+- Build image for AMD64 & ARM64 → aunghtetlwin/counting-service:latest
 - Tag with commit SHA → aunghtetlwin/counting-service:main-abc1234
 - Push to Docker Hub
 
 # Job 2: dashboard-service  
 - Same steps for dashboard-service
+```
+
+**Multi-Platform Support:**
+```bash
+# Images built for both architectures:
+- linux/amd64  # Standard servers (AWS EC2, DigitalOcean, etc.)
+- linux/arm64  # ARM servers (Raspberry Pi, AWS Graviton, Apple Silicon)
 ```
 
 ### What Gets Built
@@ -128,16 +247,32 @@ Example:
 ci-cd-demo/
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yaml          # GitHub Actions workflow
+│       └── ci-cd.yaml              # GitHub Actions workflow
 ├── counting-service/
-│   ├── Dockerfile
-│   └── counting-service        # Binary
+│   ├── Dockerfile                  # Multi-platform Dockerfile
+│   └── counting-service            # Go binary
 ├── dashboard-service/
-│   ├── Dockerfile
-│   └── dashboard-service       # Binary
-├── docker-compose.yaml         # Local development
+│   ├── Dockerfile                  # Multi-platform Dockerfile
+│   └── dashboard-service           # Go binary
+├── docker-compose.yaml             # Consul + Services orchestration
+├── register-services.sh            # Automatic Consul registration script
 └── README.md
 ```
+
+## 🔍 How It Works
+
+### Service Registration Flow
+
+1. **Docker Compose starts** all containers (Consul, counting, dashboard services)
+2. **Containers get IPs** from the Docker bridge network (`appnet`)
+3. **Registrator container** waits 10 seconds for services to be ready
+4. **Registration script** (`register-services.sh`) runs:
+   - Discovers all running counting/dashboard containers
+   - Extracts their IP addresses from Docker network
+   - Registers each instance with Consul API
+   - Configures HTTP health checks for each service
+5. **Consul monitors** all registered services via health checks every 10 seconds
+6. **Consul UI** displays real-time service health and status
 
 ## 🔐 Security Best Practices
 

@@ -1,29 +1,46 @@
 services:
-  counting-service:
+  consul:
+    image: hashicorp/consul:1.16
+    command: agent -dev -client=0.0.0.0
+    ports:
+      - "8500:8500"   # Consul UI/API
+    networks:
+      - appnet
+
+  registrator:
+    image: docker:cli
+    command: sh -c "apk add --no-cache curl bash && sleep 10 && /register.sh"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./register-services.sh:/register.sh:ro
+    depends_on:
+      - consul
+      - counting
+      - dashboard
+    network_mode: host
+    restart: "no"
+
+  counting:
     image: aunghtetlwin/counting-service:latest
-    container_name: counting-service
     environment:
       - PORT=9003
-    ports:
-      - "9003:9003"
+    expose:
+      - "9003"
     networks:
-      - consul-demo
-    restart: unless-stopped
+      - appnet
 
-  dashboard-service:
+  dashboard:
     image: aunghtetlwin/dashboard-service:latest
-    container_name: dashboard-service
     environment:
       - PORT=9002
-      - COUNTING_SERVICE_URL=http://counting-service:9003
-    ports:
-      - "9002:9002"
-    networks:
-      - consul-demo
+      - COUNTING_SERVICE_URL=http://counting:9003
+    expose:
+      - "9002"
     depends_on:
-      - counting-service
-    restart: unless-stopped
+      - counting
+    networks:
+      - appnet
 
 networks:
-  consul-demo:
+  appnet:
     driver: bridge
